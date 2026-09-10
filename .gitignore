@@ -1,0 +1,26 @@
+﻿# Environment variables
+.env
+.env.*
+*.env
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/build/
+
+# Supabase
+supabase/.temp/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+.DS_Store
+
+# Flutter (if root is ever used as flutter project directly)
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages

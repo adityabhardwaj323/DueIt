@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "147258523700",
+    "project_id": "dueit-323",
+    "storage_bucket": "dueit-323.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:147258523700:android:eeac415d3604080e978a61",
+        "android_client_info": {
+          "package_name": "com.dueit.due_it"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvMMuXHbPQRSf9E1h1ZkmQp1xKIM-TVrc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
