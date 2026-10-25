@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
 // Configuration Constants
@@ -92,6 +92,7 @@ serve(async (req: Request) => {
             user_id: task.user_id,
             task_id: task.id,
             due_id: null,
+            entity_type: 'task',
             reminder_type: 'upcoming',
             scheduled_time: upcomingDate.toISOString(),
             status: 'pending'
@@ -105,6 +106,7 @@ serve(async (req: Request) => {
             user_id: task.user_id,
             task_id: task.id,
             due_id: null,
+            entity_type: 'task',
             reminder_type: 'deadline',
             scheduled_time: dueDate.toISOString(),
             status: 'pending'
@@ -118,6 +120,7 @@ serve(async (req: Request) => {
             user_id: task.user_id,
             task_id: task.id,
             due_id: null,
+            entity_type: 'task',
             reminder_type: 'overdue',
             scheduled_time: overdueDate.toISOString(),
             status: 'pending'
@@ -139,6 +142,7 @@ serve(async (req: Request) => {
             user_id: due.user_id,
             task_id: null,
             due_id: due.id,
+            entity_type: 'due',
             reminder_type: 'upcoming',
             scheduled_time: upcomingDate.toISOString(),
             status: 'pending'
@@ -151,6 +155,7 @@ serve(async (req: Request) => {
             user_id: due.user_id,
             task_id: null,
             due_id: due.id,
+            entity_type: 'due',
             reminder_type: 'deadline',
             scheduled_time: dueDate.toISOString(),
             status: 'pending'
@@ -163,6 +168,7 @@ serve(async (req: Request) => {
             user_id: due.user_id,
             task_id: null,
             due_id: due.id,
+            entity_type: 'due',
             reminder_type: 'overdue',
             scheduled_time: overdueDate.toISOString(),
             status: 'pending'
@@ -173,16 +179,23 @@ serve(async (req: Request) => {
     }
 
     let insertedCount = 0;
+    let duplicateCount = 0;
+    let invalidCount = 0;
+
     if (newReminders.length > 0) {
-      for (const chunkedReminders of chunk(newReminders, 100)) {
-        const { error: insertError } = await supabase
-          .from('reminder_events')
-          .insert(chunkedReminders);
+      for (const chunkedReminders of chunk(newReminders, 200)) {
+        const { data: rpcResult, error: rpcError } = await supabase
+          .rpc('dueit_insert_reminder_occurrences', {
+            p_reminders: chunkedReminders
+          });
           
-        if (insertError) {
-          console.error('Insert error during batch:', insertError);
-        } else {
-          insertedCount += chunkedReminders.length;
+        if (rpcError) {
+          console.error('RPC error during reminder ingestion:', rpcError);
+          throw new Error(`Failed to insert reminder batch: ${rpcError.message}`);
+        } else if (rpcResult) {
+          insertedCount += rpcResult.inserted_count || 0;
+          duplicateCount += rpcResult.duplicate_count || 0;
+          invalidCount += rpcResult.invalid_count || 0;
         }
       }
     }
@@ -192,7 +205,9 @@ serve(async (req: Request) => {
       evaluatedTasks: tasks?.length || 0,
       evaluatedDues: dues?.length || 0,
       generatedReminders: newReminders.length,
-      insertedReminders: insertedCount
+      insertedReminders: insertedCount,
+      duplicateReminders: duplicateCount,
+      invalidReminders: invalidCount
     }), { 
       status: 200, headers: { 'Content-Type': 'application/json' } 
     });

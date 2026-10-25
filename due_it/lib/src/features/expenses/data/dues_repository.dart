@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Due {
@@ -119,10 +119,30 @@ class DuesRepository {
   }
 
   Future<void> settleDue(String id) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not logged in');
+
     final response = await _client.from('dues').update({
       'status': 'settled',
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', id).select().single();
+    }).eq('id', id).eq('user_id', userId).select().single();
+
+    // Cancel pending reminder events for this settled due belonging to this user
+    try {
+      await _client
+          .from('reminder_events')
+          .update({
+            'status': 'cancelled',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('due_id', id)
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+    } catch (e) {
+      // Log error so cancellation failure is tracked
+      // ignore: avoid_print
+      print('Warning: Failed to cancel pending reminders for due $id: $e');
+    }
 
     if (response['is_recurring'] == true) {
       final interval = response['recurrence_interval'] as String?;
@@ -158,7 +178,26 @@ class DuesRepository {
   }
 
   Future<void> deleteDue(String id) async {
-    await _client.from('dues').delete().eq('id', id);
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not logged in');
+
+    // Cancel pending reminder events before deleting due, scoped to user_id
+    try {
+      await _client
+          .from('reminder_events')
+          .update({
+            'status': 'cancelled',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('due_id', id)
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+    } catch (e) {
+      // ignore: avoid_print
+      print('Warning: Failed to cancel pending reminders before deleting due $id: $e');
+    }
+
+    await _client.from('dues').delete().eq('id', id).eq('user_id', userId);
   }
 }
 

@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:home_widget/home_widget.dart';
 
@@ -101,14 +101,56 @@ class TasksRepository {
   }
 
   Future<void> updateTaskStatus(String id, bool isCompleted) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not logged in');
+
     await _client.from('tasks').update({
       'is_completed': isCompleted,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', id);
+    }).eq('id', id).eq('user_id', userId);
+
+    // If marked as completed, cancel any pending reminder events belonging to this user
+    if (isCompleted) {
+      try {
+        await _client
+            .from('reminder_events')
+            .update({
+              'status': 'cancelled',
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('task_id', id)
+            .eq('user_id', userId)
+            .eq('status', 'pending');
+      } catch (e) {
+        // Log error so cancellation failure is visible in telemetry/diagnostics
+        // while allowing primary task completion to succeed
+        // ignore: avoid_print
+        print('Warning: Failed to cancel pending reminders for task $id: $e');
+      }
+    }
   }
 
   Future<void> deleteTask(String id) async {
-    await _client.from('tasks').delete().eq('id', id);
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not logged in');
+
+    // Cancel pending reminder events before deleting task, scoped to user_id
+    try {
+      await _client
+          .from('reminder_events')
+          .update({
+            'status': 'cancelled',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('task_id', id)
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+    } catch (e) {
+      // ignore: avoid_print
+      print('Warning: Failed to cancel pending reminders before deleting task $id: $e');
+    }
+
+    await _client.from('tasks').delete().eq('id', id).eq('user_id', userId);
   }
 }
 
