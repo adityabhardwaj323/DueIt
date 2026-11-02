@@ -1,4 +1,6 @@
-﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for Supabase Auth and backend access in release builds. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Required for Android 13+ Push Notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     
@@ -32,6 +34,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.dueit.due_it" android:host="reset-password" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.dueit.due_it" android:host="auth-callback" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

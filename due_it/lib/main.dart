@@ -29,7 +29,15 @@ void main() async {
   await AppTimezone.initialize();
 
   // Initialize Supabase
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await Supabase.initialize(
+    url: supabaseUrl,
+    publishableKey: supabaseAnonKey,
+    authOptions: const FlutterAuthClientOptions(
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUri: true,
+    ),
+  );
 
   // Initialize Firebase
   try {
@@ -82,6 +90,10 @@ class _AuthGateState extends State<_AuthGate> {
       if (state.event == AuthChangeEvent.passwordRecovery) {
         setState(() => _recoveringPassword = true);
       } else if (state.event == AuthChangeEvent.signedOut) {
+        setState(() => _recoveringPassword = false);
+      } else if (state.session != null) {
+        // Rebuild the root when password or OAuth sign-in completes, and keep
+        // persisted sessions visible after token refresh events.
         setState(() => _recoveringPassword = false);
       }
     });

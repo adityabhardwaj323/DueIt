@@ -9,6 +9,8 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
+const _authCallbackUrl = 'com.dueit.due_it://auth-callback';
+
 class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -35,6 +37,15 @@ class _AuthScreenState extends State<AuthScreen> {
       );
       return;
     }
+    if (!email.contains('@') ||
+        !email.substring(email.indexOf('@') + 1).contains('.')) {
+      _showMessage('Enter a valid email address.', isError: true);
+      return;
+    }
+    if (!_isLogin && password.length < 6) {
+      _showMessage('Password must be at least 6 characters.', isError: true);
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -50,6 +61,7 @@ class _AuthScreenState extends State<AuthScreen> {
         final response = await Supabase.instance.client.auth.signUp(
           email: email,
           password: password,
+          emailRedirectTo: kIsWeb ? null : _authCallbackUrl,
         );
         if (!mounted) return;
 
@@ -88,7 +100,10 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } catch (error) {
       if (mounted) {
-        _showMessage('An unexpected error occurred', isError: true);
+        _showMessage(
+          'Could not complete authentication. Check your connection and try again. ($error)',
+          isError: true,
+        );
       }
     } finally {
       if (mounted) {
@@ -96,6 +111,34 @@ class _AuthScreenState extends State<AuthScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final launched = await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : 'com.dueit.due_it://auth-callback',
+        scopes: 'openid email profile',
+      );
+      if (!launched && mounted) {
+        _showMessage(
+          'Could not open Google sign-in. Please try again.',
+          isError: true,
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) _showMessage(error.message, isError: true);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+          'Google sign-in failed. Check your connection and try again. ($error)',
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -111,6 +154,7 @@ class _AuthScreenState extends State<AuthScreen> {
       await Supabase.instance.client.auth.resend(
         type: OtpType.signup,
         email: email,
+        emailRedirectTo: kIsWeb ? null : _authCallbackUrl,
       );
       if (mounted) {
         _showMessage(
@@ -287,6 +331,39 @@ class _AuthScreenState extends State<AuthScreen> {
                                     fontSize: 16,
                                   ),
                                 ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider()),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                'or continue with',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _signInWithGoogle,
+                          icon: const Text(
+                            'G',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF4285F4),
+                            ),
+                          ),
+                          label: const Text('Continue with Google'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            side: BorderSide(color: theme.colorScheme.outlineVariant),
+                          ),
                         ),
                       ],
                     ),
