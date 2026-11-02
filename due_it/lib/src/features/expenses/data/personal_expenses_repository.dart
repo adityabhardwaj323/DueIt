@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PersonalExpense {
@@ -46,14 +46,16 @@ class PersonalExpensesRepository {
         .from('personal_expenses')
         .stream(primaryKey: ['id'])
         .order('expense_date', ascending: false)
-        .map((data) => data.map((json) => PersonalExpense.fromJson(json)).toList());
+        .map(
+          (data) => data.map((json) => PersonalExpense.fromJson(json)).toList(),
+        );
   }
 
   Future<void> createExpense({
-    required double amount, 
-    required String description, 
-    String? category, 
-    required DateTime expenseDate, 
+    required double amount,
+    required String description,
+    String? category,
+    required DateTime expenseDate,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
@@ -70,13 +72,40 @@ class PersonalExpensesRepository {
   Future<void> deleteExpense(String id) async {
     await _client.from('personal_expenses').delete().eq('id', id);
   }
+
+  Future<void> updateExpense(
+    String id, {
+    required double amount,
+    required String description,
+    String? category,
+    required DateTime expenseDate,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not logged in');
+
+    await _client
+        .from('personal_expenses')
+        .update({
+          'amount': amount,
+          'description': description,
+          'category': category,
+          'expense_date': expenseDate.toUtc().toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId);
+  }
 }
 
-final personalExpensesRepositoryProvider = Provider<PersonalExpensesRepository>((ref) {
-  return PersonalExpensesRepository(Supabase.instance.client);
-});
+final personalExpensesRepositoryProvider = Provider<PersonalExpensesRepository>(
+  (ref) {
+    return PersonalExpensesRepository(Supabase.instance.client);
+  },
+);
 
-final personalExpensesStreamProvider = StreamProvider<List<PersonalExpense>>((ref) {
+final personalExpensesStreamProvider = StreamProvider<List<PersonalExpense>>((
+  ref,
+) {
   final repo = ref.watch(personalExpensesRepositoryProvider);
   return repo.watchPersonalExpenses();
 });

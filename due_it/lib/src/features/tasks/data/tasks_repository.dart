@@ -31,7 +31,9 @@ class Task {
       userId: json['user_id'],
       title: json['title'],
       description: json['description'],
-      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']).toLocal() : null,
+      dueDate: json['due_date'] != null
+          ? DateTime.parse(json['due_date']).toLocal()
+          : null,
       priority: json['priority'],
       isCompleted: json['is_completed'] ?? false,
       createdAt: DateTime.parse(json['created_at']).toLocal(),
@@ -52,22 +54,25 @@ class TasksRepository {
         .order('due_date', ascending: true)
         .map((data) {
           final tasksList = data.map((json) => Task.fromJson(json)).toList();
-          
+
           // Update Home Widget
           final pendingCount = tasksList.where((t) => !t.isCompleted).length;
           HomeWidget.saveWidgetData<String>('widget_title', 'DueIt Status');
-          HomeWidget.saveWidgetData<String>('widget_subtitle', 'You have  pending tasks.');
+          HomeWidget.saveWidgetData<String>(
+            'widget_subtitle',
+            'You have $pendingCount pending tasks.',
+          );
           HomeWidget.updateWidget(androidName: 'DueItWidgetProvider');
-          
+
           return tasksList;
         });
   }
 
   Future<void> createTask({
-    required String title, 
-    String? description, 
-    DateTime? dueDate, 
-    String? priority, 
+    required String title,
+    String? description,
+    DateTime? dueDate,
+    String? priority,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
@@ -81,10 +86,12 @@ class TasksRepository {
     });
   }
 
-  Future<void> updateTask(String id, {
+  Future<void> updateTask(
+    String id, {
     String? title,
     String? description,
     DateTime? dueDate,
+    bool clearDueDate = false,
     String? priority,
     bool? isCompleted,
   }) async {
@@ -93,7 +100,9 @@ class TasksRepository {
     };
     if (title != null) updates['title'] = title;
     if (description != null) updates['description'] = description;
-    if (dueDate != null) updates['due_date'] = dueDate.toUtc().toIso8601String();
+    if (dueDate != null || clearDueDate) {
+      updates['due_date'] = dueDate?.toUtc().toIso8601String();
+    }
     if (priority != null) updates['priority'] = priority;
     if (isCompleted != null) updates['is_completed'] = isCompleted;
 
@@ -104,10 +113,14 @@ class TasksRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
 
-    await _client.from('tasks').update({
-      'is_completed': isCompleted,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', id).eq('user_id', userId);
+    await _client
+        .from('tasks')
+        .update({
+          'is_completed': isCompleted,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId);
 
     // If marked as completed, cancel any pending reminder events belonging to this user
     if (isCompleted) {
@@ -147,7 +160,9 @@ class TasksRepository {
           .eq('status', 'pending');
     } catch (e) {
       // ignore: avoid_print
-      print('Warning: Failed to cancel pending reminders before deleting task $id: $e');
+      print(
+        'Warning: Failed to cancel pending reminders before deleting task $id: $e',
+      );
     }
 
     await _client.from('tasks').delete().eq('id', id).eq('user_id', userId);

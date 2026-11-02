@@ -44,7 +44,9 @@ class Due {
       amount: (json['amount'] as num).toDouble(),
       reason: json['reason'],
       transactionDate: DateTime.parse(json['transaction_date']).toLocal(),
-      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']).toLocal() : null,
+      dueDate: json['due_date'] != null
+          ? DateTime.parse(json['due_date']).toLocal()
+          : null,
       status: json['status'] ?? 'pending',
       isRecurring: json['is_recurring'] ?? false,
       recurrenceInterval: json['recurrence_interval'],
@@ -76,7 +78,7 @@ class DuesRepository {
     required DateTime transactionDate,
     DateTime? dueDate,
     bool isRecurring = false,
-    String? recurrenceInterval
+    String? recurrenceInterval,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
@@ -95,7 +97,8 @@ class DuesRepository {
     });
   }
 
-  Future<void> updateDue(String id, {
+  Future<void> updateDue(
+    String id, {
     String? direction,
     String? personName,
     String? personEmail,
@@ -112,20 +115,28 @@ class DuesRepository {
     if (personEmail != null) updates['person_email'] = personEmail;
     if (amount != null) updates['amount'] = amount;
     if (reason != null) updates['reason'] = reason;
-    if (transactionDate != null) updates['transaction_date'] = transactionDate.toUtc().toIso8601String();
-    if (dueDate != null) updates['due_date'] = dueDate.toUtc().toIso8601String();
+    if (transactionDate != null)
+      updates['transaction_date'] = transactionDate.toUtc().toIso8601String();
+    if (dueDate != null)
+      updates['due_date'] = dueDate.toUtc().toIso8601String();
 
     await _client.from('dues').update(updates).eq('id', id);
   }
 
-  Future<void> settleDue(String id) async {
+  Future<void> settleDue(String id, {bool createNextRecurring = true}) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
 
-    final response = await _client.from('dues').update({
-      'status': 'settled',
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', id).eq('user_id', userId).select().single();
+    final response = await _client
+        .from('dues')
+        .update({
+          'status': 'settled',
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
 
     // Cancel pending reminder events for this settled due belonging to this user
     try {
@@ -144,20 +155,28 @@ class DuesRepository {
       print('Warning: Failed to cancel pending reminders for due $id: $e');
     }
 
-    if (response['is_recurring'] == true) {
+    if (createNextRecurring && response['is_recurring'] == true) {
       final interval = response['recurrence_interval'] as String?;
       final currentDueDateStr = response['due_date'] as String?;
-      
+
       if (currentDueDateStr != null && interval != null) {
         final currentDue = DateTime.parse(currentDueDateStr).toLocal();
         DateTime nextDue;
-        
+
         if (interval.toLowerCase() == 'weekly') {
           nextDue = currentDue.add(const Duration(days: 7));
         } else if (interval.toLowerCase() == 'monthly') {
-          nextDue = DateTime(currentDue.year, currentDue.month + 1, currentDue.day);
+          nextDue = DateTime(
+            currentDue.year,
+            currentDue.month + 1,
+            currentDue.day,
+          );
         } else if (interval.toLowerCase() == 'yearly') {
-          nextDue = DateTime(currentDue.year + 1, currentDue.month, currentDue.day);
+          nextDue = DateTime(
+            currentDue.year + 1,
+            currentDue.month,
+            currentDue.day,
+          );
         } else {
           nextDue = currentDue.add(const Duration(days: 30));
         }
@@ -194,7 +213,9 @@ class DuesRepository {
           .eq('status', 'pending');
     } catch (e) {
       // ignore: avoid_print
-      print('Warning: Failed to cancel pending reminders before deleting due $id: $e');
+      print(
+        'Warning: Failed to cancel pending reminders before deleting due $id: $e',
+      );
     }
 
     await _client.from('dues').delete().eq('id', id).eq('user_id', userId);

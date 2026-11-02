@@ -22,6 +22,8 @@ create table public.notes (
     user_id uuid references auth.users not null,
     title text,
     content text not null,
+    note_type text not null default 'text' check (note_type in ('text', 'checklist')),
+    checklist_items jsonb not null default '[]'::jsonb,
     created_at timestamp with time zone default now(),
     updated_at timestamp with time zone default now()
 );
@@ -36,11 +38,29 @@ create table public.streak_tasks (
     current_streak integer default 0,
     best_streak integer default 0,
     last_completed_date date,
+    completion_snapshot_date date,
+    previous_last_completed_date date,
+    previous_current_streak integer,
+    previous_best_streak integer,
     created_at timestamp with time zone default now(),
     updated_at timestamp with time zone default now()
 );
 alter table public.streak_tasks enable row level security;
 create policy "Users can manage their own streak tasks" on public.streak_tasks for all using (auth.uid() = user_id);
+
+-- Habit completion history, one row per habit per day.
+create table public.habit_completions (
+    habit_id uuid references public.streak_tasks(id) on delete cascade not null,
+    user_id uuid references auth.users(id) on delete cascade not null,
+    completed_date date not null,
+    created_at timestamp with time zone default now(),
+    primary key (habit_id, completed_date)
+);
+alter table public.habit_completions enable row level security;
+create policy "Users can manage their own habit completions"
+    on public.habit_completions for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
 
 -- 4. Dues Table
 create table public.dues (

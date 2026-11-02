@@ -1,6 +1,7 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/timezone.dart' as tz;
+
 import '../../../core/utils/app_timezone.dart';
 
 class StreakTask {
@@ -31,11 +32,47 @@ class StreakTask {
       title: json['title'],
       currentStreak: json['current_streak'] ?? 0,
       bestStreak: json['best_streak'] ?? 0,
-      lastCompletedDate: json['last_completed_date'] != null ? DateTime.parse(json['last_completed_date']).toLocal() : null,
+      // This column is a PostgreSQL DATE in the habit's business timezone.
+      lastCompletedDate: json['last_completed_date'] != null
+          ? DateTime.parse('${json['last_completed_date']}T00:00:00')
+          : null,
       createdAt: DateTime.parse(json['created_at']).toLocal(),
       updatedAt: DateTime.parse(json['updated_at']).toLocal(),
     );
   }
+}
+
+class HabitCompletion {
+  final String habitId;
+  final DateTime completedDate;
+
+  const HabitCompletion({required this.habitId, required this.completedDate});
+
+  factory HabitCompletion.fromJson(Map<String, dynamic> json) {
+    return HabitCompletion(
+      habitId: json['habit_id'] as String,
+      completedDate: DateTime.parse(json['completed_date'] as String),
+    );
+  }
+}
+
+class HabitCompletionRange {
+  final String fromDate;
+  final String throughDate;
+
+  const HabitCompletionRange({
+    required this.fromDate,
+    required this.throughDate,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is HabitCompletionRange &&
+      other.fromDate == fromDate &&
+      other.throughDate == throughDate;
+
+  @override
+  int get hashCode => Object.hash(fromDate, throughDate);
 }
 
 class StreakTasksRepository {
@@ -51,6 +88,24 @@ class StreakTasksRepository {
         .map((data) => data.map((json) => StreakTask.fromJson(json)).toList());
   }
 
+  Stream<List<HabitCompletion>> watchCompletions({
+    required String fromDate,
+    required String throughDate,
+  }) {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return const Stream.empty();
+
+    return _client
+        .from('habit_completions')
+        .stream(primaryKey: ['habit_id', 'completed_date'])
+        .eq('user_id', userId)
+        .gte('completed_date', fromDate)
+        .lte('completed_date', throughDate)
+        .map(
+          (data) => data.map((json) => HabitCompletion.fromJson(json)).toList(),
+        );
+  }
+
   Future<void> createStreakTask(String title) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
@@ -62,43 +117,44 @@ class StreakTasksRepository {
   }
 
   Future<void> updateStreakTask(String id, String title) async {
-    await _client.from('streak_tasks').update({
-      'title': title,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', id);
+    await _client
+        .from('streak_tasks')
+        .update({
+          'title': title,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id);
   }
 
   Future<void> completeStreakTask(String id) async {
-    final taskData = await _client.from('streak_tasks').select().eq('id', id).single();
-    
-    final String? lastCompletedStr = taskData['last_completed_date'];
-    
-    final todayKey = AppTimezone.todayDateKey();
-    
-    bool alreadyCompletedToday = false;
-    bool isConsecutive = false;
+    final taskData = await _client
+        .from('streak_tasks')
+        .select()
+        .eq('id', id)
+        .single();
 
-    if (lastCompletedStr != null) {
-      final lastCompleted = DateTime.parse(lastCompletedStr);
-      final lastKey = AppTimezone.dateKey(lastCompleted);
-      
-      alreadyCompletedToday = (todayKey == lastKey);
-      
-      if (!alreadyCompletedToday) {
-        final lastTz = tz.TZDateTime.from(lastCompleted, AppTimezone.businessLocation);
-        final lastDate = tz.TZDateTime(AppTimezone.businessLocation, lastTz.year, lastTz.month, lastTz.day);
-        final todayDate = AppTimezone.businessDate();
-        
-        // Check if exactly 1 calendar day apart
-        isConsecutive = (todayDate.difference(lastDate).inDays == 1);
-      }
-    }
+    final todayKey = AppTimezone.todayDateKey();
+    final String? lastCompletedKey = taskData['last_completed_date']
+        ?.toString();
+    final alreadyCompletedToday = lastCompletedKey == todayKey;
+    final today = AppTimezone.businessDate();
+    final yesterday = tz.TZDateTime(
+      AppTimezone.businessLocation,
+      today.year,
+      today.month,
+      today.day - 1,
+    );
+    final isConsecutive =
+        lastCompletedKey ==
+        '${yesterday.year.toString().padLeft(4, '0')}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
 
     if (!alreadyCompletedToday) {
-      int currentStreak = (taskData['current_streak'] as int?) ?? 0;
-      int bestStreak = (taskData['best_streak'] as int?) ?? 0;
-      
-      if (lastCompletedStr == null) {
+      final previousCurrentStreak = (taskData['current_streak'] as int?) ?? 0;
+      final previousBestStreak = (taskData['best_streak'] as int?) ?? 0;
+      int currentStreak = previousCurrentStreak;
+      int bestStreak = previousBestStreak;
+
+      if (lastCompletedKey == null) {
         // First completion ever
         currentStreak = 1;
       } else if (isConsecutive) {
@@ -112,17 +168,82 @@ class StreakTasksRepository {
       if (currentStreak > bestStreak) {
         bestStreak = currentStreak;
       }
-      
-      // Store absolute UTC timestamp safely
-      final nowUtc = DateTime.now().toUtc();
-      
-      await _client.from('streak_tasks').update({
-        'current_streak': currentStreak,
-        'best_streak': bestStreak,
-        'last_completed_date': nowUtc.toIso8601String(),
-        'updated_at': nowUtc.toIso8601String(),
-      }).eq('id', id);
+
+      await _client
+          .from('streak_tasks')
+          .update({
+            'current_streak': currentStreak,
+            'best_streak': bestStreak,
+            // A DATE keeps the midnight reset aligned to Asia/Kolkata, independent
+            // of the device timezone or the database server timezone.
+            'last_completed_date': todayKey,
+            'completion_snapshot_date': todayKey,
+            'previous_last_completed_date': lastCompletedKey,
+            'previous_current_streak': previousCurrentStreak,
+            'previous_best_streak': previousBestStreak,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', id);
     }
+
+    await _client.from('habit_completions').upsert({
+      'habit_id': id,
+      'user_id': taskData['user_id'],
+      'completed_date': todayKey,
+    }, onConflict: 'habit_id,completed_date');
+  }
+
+  Future<void> uncompleteStreakTask(String id) async {
+    final taskData = await _client
+        .from('streak_tasks')
+        .select()
+        .eq('id', id)
+        .single();
+
+    final todayKey = AppTimezone.todayDateKey();
+    if (taskData['last_completed_date']?.toString() != todayKey) return;
+
+    final today = AppTimezone.businessDate();
+    final yesterday = tz.TZDateTime(
+      AppTimezone.businessLocation,
+      today.year,
+      today.month,
+      today.day - 1,
+    );
+    final yesterdayKey =
+        '${yesterday.year.toString().padLeft(4, '0')}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+    final hasTodaySnapshot =
+        taskData['completion_snapshot_date']?.toString() == todayKey;
+    final previousLastDate = hasTodaySnapshot
+        ? taskData['previous_last_completed_date']?.toString()
+        : ((taskData['current_streak'] as int? ?? 0) > 1 ? yesterdayKey : null);
+    final currentStreak = (taskData['current_streak'] as int?) ?? 0;
+    final restoredCurrentStreak = hasTodaySnapshot
+        ? (taskData['previous_current_streak'] as int? ?? 0)
+        : (currentStreak > 0 ? currentStreak - 1 : 0);
+    final restoredBestStreak = hasTodaySnapshot
+        ? (taskData['previous_best_streak'] as int? ?? 0)
+        : (taskData['best_streak'] as int? ?? 0);
+
+    await _client
+        .from('streak_tasks')
+        .update({
+          'last_completed_date': previousLastDate,
+          'current_streak': restoredCurrentStreak,
+          'best_streak': restoredBestStreak,
+          'completion_snapshot_date': null,
+          'previous_last_completed_date': null,
+          'previous_current_streak': null,
+          'previous_best_streak': null,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id);
+
+    await _client
+        .from('habit_completions')
+        .delete()
+        .eq('habit_id', id)
+        .eq('completed_date', todayKey);
   }
 
   Future<void> deleteStreakTask(String id) async {
@@ -138,3 +259,15 @@ final streakTasksStreamProvider = StreamProvider<List<StreakTask>>((ref) {
   final repo = ref.watch(streakTasksRepositoryProvider);
   return repo.watchStreakTasks();
 });
+
+final habitCompletionsStreamProvider =
+    StreamProvider.family<List<HabitCompletion>, HabitCompletionRange>((
+      ref,
+      range,
+    ) {
+      final repo = ref.watch(streakTasksRepositoryProvider);
+      return repo.watchCompletions(
+        fromDate: range.fromDate,
+        throughDate: range.throughDate,
+      );
+    });

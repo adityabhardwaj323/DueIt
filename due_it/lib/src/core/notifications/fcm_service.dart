@@ -1,4 +1,5 @@
-﻿import 'dart:math';
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,10 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FCMService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final SupabaseClient _supabase = Supabase.instance.client;
-  
+
   // VAPID key is securely provided via Dart environment variables during build.
   // Example: flutter build web --dart-define=FIREBASE_VAPID_KEY=your_key
-  static const String webVapidKey = String.fromEnvironment('FIREBASE_VAPID_KEY');
+  static const String webVapidKey = String.fromEnvironment(
+    'FIREBASE_VAPID_KEY',
+  );
 
   Future<String> _getDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -21,7 +24,8 @@ class FCMService {
       bytes[6] = (bytes[6] & 0x0f) | 0x40;
       bytes[8] = (bytes[8] & 0x3f) | 0x80;
       final uuid = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-      deviceId = '${uuid.substring(0,8)}-${uuid.substring(8,12)}-${uuid.substring(12,16)}-${uuid.substring(16,20)}-${uuid.substring(20)}';
+      deviceId =
+          '${uuid.substring(0, 8)}-${uuid.substring(8, 12)}-${uuid.substring(12, 16)}-${uuid.substring(16, 20)}-${uuid.substring(20)}';
       await prefs.setString('dueit_device_id', deviceId);
     }
     return deviceId;
@@ -40,21 +44,22 @@ class FCMService {
         provisional: false,
       );
 
-      if (settings.authorizationStatus == AuthorizationStatus.authorized || 
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional) {
-        
         // 2. Get Token
         String? token = await _messaging.getToken(
-          vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null
+          vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
         );
         await _syncToken(token);
 
         // 3. Listen for Token Refresh
-        _messaging.onTokenRefresh.listen((newToken) {
-          _syncToken(newToken);
-        }).onError((err) {
-          debugPrint('Error on token refresh: $err');
-        });
+        _messaging.onTokenRefresh
+            .listen((newToken) {
+              _syncToken(newToken);
+            })
+            .onError((err) {
+              debugPrint('Error on token refresh: $err');
+            });
       }
     } catch (e) {
       debugPrint('FCM Initialization / Permission error: $e');
@@ -98,10 +103,11 @@ class FCMService {
     try {
       final deviceId = await _getDeviceId();
       // Delete using user_id and device_id for safe multi-device targeting
-      await _supabase.from('user_fcm_tokens')
-          .delete()
-          .match({'user_id': user.id, 'device_id': deviceId});
-          
+      await _supabase.from('user_fcm_tokens').delete().match({
+        'user_id': user.id,
+        'device_id': deviceId,
+      });
+
       // Also delete from Firebase backend so it gets a new one next time
       await _messaging.deleteToken();
     } catch (e) {

@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Note {
@@ -6,6 +6,8 @@ class Note {
   final String userId;
   final String? title;
   final String content;
+  final bool isChecklist;
+  final List<NoteChecklistItem> checklistItems;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -14,6 +16,8 @@ class Note {
     required this.userId,
     this.title,
     required this.content,
+    this.isChecklist = false,
+    this.checklistItems = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -24,10 +28,32 @@ class Note {
       userId: json['user_id'],
       title: json['title'],
       content: json['content'],
+      isChecklist: json['note_type'] == 'checklist',
+      checklistItems: ((json['checklist_items'] as List<dynamic>?) ?? const [])
+          .map(
+            (item) => NoteChecklistItem.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
       createdAt: DateTime.parse(json['created_at']).toLocal(),
       updatedAt: DateTime.parse(json['updated_at']).toLocal(),
     );
   }
+}
+
+class NoteChecklistItem {
+  final String text;
+  final bool isChecked;
+
+  const NoteChecklistItem({required this.text, this.isChecked = false});
+
+  factory NoteChecklistItem.fromJson(Map<String, dynamic> json) {
+    return NoteChecklistItem(
+      text: json['text'] as String? ?? '',
+      isChecked: json['is_checked'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'text': text, 'is_checked': isChecked};
 }
 
 class NotesRepository {
@@ -43,7 +69,12 @@ class NotesRepository {
         .map((data) => data.map((json) => Note.fromJson(json)).toList());
   }
 
-  Future<void> createNote({String? title, required String content}) async {
+  Future<void> createNote({
+    String? title,
+    required String content,
+    bool isChecklist = false,
+    List<NoteChecklistItem> checklistItems = const [],
+  }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
 
@@ -51,15 +82,25 @@ class NotesRepository {
       'user_id': userId,
       'title': title,
       'content': content,
+      'note_type': isChecklist ? 'checklist' : 'text',
+      'checklist_items': checklistItems.map((item) => item.toJson()).toList(),
     });
   }
 
-  Future<void> updateNote(String id, {String? title, required String content}) async {
+  Future<void> updateNote(
+    String id, {
+    String? title,
+    required String content,
+    bool isChecklist = false,
+    List<NoteChecklistItem> checklistItems = const [],
+  }) async {
     final updates = <String, dynamic>{
+      'title': title,
       'content': content,
+      'note_type': isChecklist ? 'checklist' : 'text',
+      'checklist_items': checklistItems.map((item) => item.toJson()).toList(),
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
-    if (title != null) updates['title'] = title;
 
     await _client.from('notes').update(updates).eq('id', id);
   }

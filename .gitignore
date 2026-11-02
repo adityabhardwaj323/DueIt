@@ -1,4 +1,4 @@
-﻿# Environment variables
+# Environment variables
 .env
 .env.*
 *.env
@@ -24,3 +24,6 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
+
+# Local Android build toolchain (not versioned)
+**/.toolchain/

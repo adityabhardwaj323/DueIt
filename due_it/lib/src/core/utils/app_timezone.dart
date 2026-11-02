@@ -1,6 +1,5 @@
-﻿import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_timezone/flutter_timezone.dart';
 
 class AppTimezone {
   static const String businessTimezone = 'Asia/Kolkata';
@@ -20,8 +19,21 @@ class AppTimezone {
     return tz.TZDateTime(businessLocation, now.year, now.month, now.day);
   }
 
-  static DateTime createBusinessEventTime(int year, int month, int day, int hour, int minute) {
-    final tzTime = tz.TZDateTime(businessLocation, year, month, day, hour, minute);
+  static DateTime createBusinessEventTime(
+    int year,
+    int month,
+    int day,
+    int hour,
+    int minute,
+  ) {
+    final tzTime = tz.TZDateTime(
+      businessLocation,
+      year,
+      month,
+      day,
+      hour,
+      minute,
+    );
     return tzTime.toUtc();
   }
 
@@ -32,7 +44,7 @@ class AppTimezone {
     final d = tzTime.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
-  
+
   static String todayDateKey() {
     final now = businessNow();
     final y = now.year.toString().padLeft(4, '0');
