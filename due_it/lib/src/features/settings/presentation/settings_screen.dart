@@ -1,11 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'web_export_stub.dart' if (dart.library.html) 'web_export_web.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -13,59 +12,69 @@ import '../../../core/theme/theme_provider.dart';
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _exportData(BuildContext context) async {
+  Future<List<Map<String, dynamic>>> _fetchUserRows(
+    SupabaseClient client,
+    String table,
+    String userId,
+  ) async {
+    final rows = <Map<String, dynamic>>[];
+    const pageSize = 1000;
+    for (var offset = 0; ; offset += pageSize) {
+      final baseQuery = client.from(table).select().eq('user_id', userId);
+      final orderedQuery = table == 'habit_completions'
+          ? baseQuery
+                .order('completed_date', ascending: true)
+                .order('habit_id', ascending: true)
+          : baseQuery
+                .order('created_at', ascending: true)
+                .order('id', ascending: true);
+      final page = await orderedQuery.range(offset, offset + pageSize - 1);
+      rows.addAll(List<Map<String, dynamic>>.from(page));
+      if (page.length < pageSize) return rows;
+    }
+  }
+
+  Future<void> _exportData(BuildContext context, {required bool csv}) async {
     try {
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
       if (userId == null) throw Exception('Not logged in');
 
-      // Fetch all data
-      final notes = await client.from('notes').select();
-      final tasks = await client.from('tasks').select();
-      final streakTasks = await client.from('streak_tasks').select();
-      final dues = await client.from('dues').select();
-      final personalExpenses = await client.from('personal_expenses').select();
+      final tables = <String>[
+        'notes',
+        'tasks',
+        'streak_tasks',
+        'habit_completions',
+        'dues',
+        'personal_expenses',
+      ];
+      final data = <String, List<Map<String, dynamic>>>{};
+      for (final table in tables) {
+        data[table] = await _fetchUserRows(client, table, userId);
+      }
 
-      final exportData = {
+      final exportData = <String, dynamic>{
         'export_date': DateTime.now().toIso8601String(),
-        'notes': notes,
-        'tasks': tasks,
-        'streak_tasks': streakTasks,
-        'dues': dues,
-        'personal_expenses': personalExpenses,
+        ...data,
       };
+      final filename =
+          'dueit_export_${DateTime.now().millisecondsSinceEpoch}.${csv ? 'csv' : 'json'}';
+      final mimeType = csv ? 'text/csv' : 'application/json';
+      final content = csv
+          ? _toCsv(data)
+          : const JsonEncoder.withIndent('  ').convert(exportData);
 
-      final jsonString = jsonEncode(exportData);
-
-      if (kIsWeb) {
-        // Web download
-        downloadWebData(
-          jsonString,
-          "dueit_export_${DateTime.now().millisecondsSinceEpoch}.json",
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(utf8.encode(content), mimeType: mimeType)],
+          fileNameOverrides: [filename],
+          text: 'DueIt data export',
+        ),
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Export ready to share or save.')),
         );
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Export downloaded successfully!')),
-          );
-        }
-      } else {
-        if (context.mounted) {
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('Export Data'),
-              content: const Text(
-                'JSON export is only fully supported on Web in this MVP iteration. On mobile, we will add share_plus later.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-        }
       }
     } catch (e) {
       if (context.mounted) {
@@ -73,6 +82,24 @@ class SettingsScreen extends ConsumerWidget {
             .showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     }
+  }
+
+  String _toCsv(Map<String, List<Map<String, dynamic>>> data) {
+    final rows = <List<String>>[
+      ['record_type', 'id', 'created_at', 'data'],
+    ];
+    for (final entry in data.entries) {
+      for (final record in entry.value) {
+        rows.add([
+          entry.key,
+          '${record['id'] ?? ''}',
+          '${record['created_at'] ?? ''}',
+          jsonEncode(record),
+        ]);
+      }
+    }
+    String quote(String value) => '"${value.replaceAll('"', '""')}"';
+    return rows.map((row) => row.map(quote).join(',')).join('\r\n');
   }
 
   @override
@@ -260,7 +287,23 @@ class SettingsScreen extends ConsumerWidget {
                 'Download all notes, tasks, and dues records',
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => _exportData(context),
+              onTap: () => _exportData(context, csv: false),
+            ),
+          ),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ListTile(
+              leading: Icon(
+                Icons.table_view_rounded,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text(
+                'Export Data (CSV)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text('Export records for spreadsheets'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => _exportData(context, csv: true),
             ),
           ),
 

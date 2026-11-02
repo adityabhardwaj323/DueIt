@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -55,21 +57,53 @@ class DueItApp extends ConsumerWidget {
       title: 'DueIt',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.getTheme(currentThemeKey),
-      home: StreamBuilder<AuthState>(
-        stream: Supabase.instance.client.auth.onAuthStateChange,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          final session = snapshot.data?.session;
-          if (session != null) {
-            return const MainLayout();
-          }
-          return const AuthScreen();
-        },
-      ),
+      home: const _AuthGate(),
     );
+  }
+}
+
+class _AuthGate extends StatefulWidget {
+  const _AuthGate();
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  bool _recoveringPassword = false;
+  late final StreamSubscription<AuthState> _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      state,
+    ) {
+      if (!mounted) return;
+      if (state.event == AuthChangeEvent.passwordRecovery) {
+        setState(() => _recoveringPassword = true);
+      } else if (state.event == AuthChangeEvent.signedOut) {
+        setState(() => _recoveringPassword = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_recoveringPassword) {
+      return PasswordRecoveryScreen(
+        onComplete: () {
+          setState(() => _recoveringPassword = false);
+        },
+      );
+    }
+    return Supabase.instance.client.auth.currentSession == null
+        ? const AuthScreen()
+        : const MainLayout();
   }
 }

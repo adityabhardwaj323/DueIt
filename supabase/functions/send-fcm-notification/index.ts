@@ -82,7 +82,19 @@ serve(async (req: Request) => {
         .eq('id', reminderData.task_id)
         .maybeSingle();
 
-      if (taskError || !taskData || taskData.is_completed) {
+      if (taskError) {
+        await serviceRoleClient.rpc('dueit_finalize_reminder', {
+          p_reminder_id: reminder_event_id,
+          p_claim_token: claimToken,
+          p_outcome: 'retryable',
+          p_error: 'Temporary task lookup failure'
+        });
+        return new Response(JSON.stringify({ error: 'Temporary task lookup failure' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!taskData || taskData.is_completed) {
         await serviceRoleClient.rpc('dueit_finalize_reminder', {
           p_reminder_id: reminder_event_id,
           p_claim_token: claimToken,
@@ -103,7 +115,19 @@ serve(async (req: Request) => {
         .eq('id', reminderData.due_id)
         .maybeSingle();
 
-      if (dueError || !dueData || dueData.status === 'settled') {
+      if (dueError) {
+        await serviceRoleClient.rpc('dueit_finalize_reminder', {
+          p_reminder_id: reminder_event_id,
+          p_claim_token: claimToken,
+          p_outcome: 'retryable',
+          p_error: 'Temporary due lookup failure'
+        });
+        return new Response(JSON.stringify({ error: 'Temporary due lookup failure' }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!dueData || dueData.status === 'settled') {
         await serviceRoleClient.rpc('dueit_finalize_reminder', {
           p_reminder_id: reminder_event_id,
           p_claim_token: claimToken,

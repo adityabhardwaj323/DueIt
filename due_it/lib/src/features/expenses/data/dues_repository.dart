@@ -120,7 +120,13 @@ class DuesRepository {
     if (dueDate != null)
       updates['due_date'] = dueDate.toUtc().toIso8601String();
 
-    await _client.from('dues').update(updates).eq('id', id);
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw Exception('User not logged in');
+    await _client
+        .from('dues')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', userId);
   }
 
   Future<void> settleDue(String id, {bool createNextRecurring = true}) async {
@@ -138,22 +144,7 @@ class DuesRepository {
         .select()
         .single();
 
-    // Cancel pending reminder events for this settled due belonging to this user
-    try {
-      await _client
-          .from('reminder_events')
-          .update({
-            'status': 'cancelled',
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('due_id', id)
-          .eq('user_id', userId)
-          .eq('status', 'pending');
-    } catch (e) {
-      // Log error so cancellation failure is tracked
-      // ignore: avoid_print
-      print('Warning: Failed to cancel pending reminders for due $id: $e');
-    }
+    // A database trigger atomically cancels pending and leased reminders.
 
     if (createNextRecurring && response['is_recurring'] == true) {
       final interval = response['recurrence_interval'] as String?;
@@ -199,24 +190,6 @@ class DuesRepository {
   Future<void> deleteDue(String id) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('User not logged in');
-
-    // Cancel pending reminder events before deleting due, scoped to user_id
-    try {
-      await _client
-          .from('reminder_events')
-          .update({
-            'status': 'cancelled',
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('due_id', id)
-          .eq('user_id', userId)
-          .eq('status', 'pending');
-    } catch (e) {
-      // ignore: avoid_print
-      print(
-        'Warning: Failed to cancel pending reminders before deleting due $id: $e',
-      );
-    }
 
     await _client.from('dues').delete().eq('id', id).eq('user_id', userId);
   }

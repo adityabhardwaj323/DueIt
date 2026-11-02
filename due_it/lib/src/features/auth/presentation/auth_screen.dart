@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -133,6 +134,36 @@ class _AuthScreenState extends State<AuthScreen> {
           isError: true,
         );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showMessage('Enter your email address first.', isError: true);
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: kIsWeb ? null : 'com.dueit.due_it://reset-password',
+      );
+      if (mounted) {
+        _showMessage(
+          'If an account exists for that email, a reset link has been sent.',
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) _showMessage(error.message, isError: true);
+    } catch (_) {
+      if (mounted)
+        _showMessage(
+          'Could not request a password reset. Try again.',
+          isError: true,
+        );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -286,6 +317,14 @@ class _AuthScreenState extends State<AuthScreen> {
                       style: TextStyle(color: theme.colorScheme.primary),
                     ),
                   ),
+                if (_isLogin)
+                  TextButton(
+                    onPressed: _isLoading ? null : _forgotPassword,
+                    child: Text(
+                      'Forgot password?',
+                      style: TextStyle(color: theme.colorScheme.primary),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -293,4 +332,100 @@ class _AuthScreenState extends State<AuthScreen> {
       ),
     );
   }
+}
+
+class PasswordRecoveryScreen extends StatefulWidget {
+  const PasswordRecoveryScreen({super.key, required this.onComplete});
+  final VoidCallback onComplete;
+
+  @override
+  State<PasswordRecoveryScreen> createState() => _PasswordRecoveryScreenState();
+}
+
+class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _loading = false;
+  String? _error;
+
+  Future<void> _save() async {
+    if (_password.text.length < 8) {
+      setState(() => _error = 'Use at least 8 characters for your password.');
+      return;
+    }
+    if (_password.text != _confirm.text) {
+      setState(() => _error = 'The passwords do not match.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: _password.text),
+      );
+      if (mounted) widget.onComplete();
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => _error = 'Password update failed. Reopen the newest reset link and try again.',
+        );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Choose a new password')),
+    body: Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'New password'),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _confirm,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm password',
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: _loading ? null : _save,
+                child: Text(_loading ? 'Saving…' : 'Update password'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

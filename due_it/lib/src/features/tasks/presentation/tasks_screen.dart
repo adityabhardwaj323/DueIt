@@ -117,27 +117,20 @@ class TasksScreen extends ConsumerWidget {
             );
           }
 
-          final today = AppTimezone.businessDate();
-          final tomorrow = today.add(const Duration(days: 1));
           final pendingTasks = tasks.where((t) => !t.isCompleted).toList();
-          final dailyTasks = pendingTasks.where((task) {
-            final dueDate = task.dueDate;
-            if (dueDate == null) return true;
-            final date = tz.TZDateTime.from(
-              dueDate,
-              AppTimezone.businessLocation,
-            );
-            return date.isBefore(tomorrow);
-          }).toList();
-          final scheduledTasks = pendingTasks.where((task) {
-            final dueDate = task.dueDate;
-            if (dueDate == null) return false;
-            final date = tz.TZDateTime.from(
-              dueDate,
-              AppTimezone.businessLocation,
-            );
-            return !date.isBefore(tomorrow);
-          }).toList();
+          final today = AppTimezone.businessDate();
+          final tasksByDay = <DateTime, List<Task>>{};
+          for (final task in pendingTasks) {
+            final due = task.dueDate == null
+                ? today
+                : tz.TZDateTime.from(
+                    task.dueDate!,
+                    AppTimezone.businessLocation,
+                  );
+            final day = DateTime(due.year, due.month, due.day);
+            (tasksByDay[day] ??= []).add(task);
+          }
+          final taskDays = tasksByDay.keys.toList()..sort();
           final completedTasks = tasks.where((t) => t.isCompleted).toList()
             ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
@@ -145,72 +138,19 @@ class TasksScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(top: 8, bottom: 84),
             children: [
               _buildWeeklyCompletionCard(context, completedTasks),
-              if (dailyTasks.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Daily Tasks',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${dailyTasks.length}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              ...taskDays.map(
+                (day) => _buildTaskDayRow(
+                  context,
+                  ref,
+                  day,
+                  tasksByDay[day]!,
+                  today,
+                  isDark,
+                  theme,
                 ),
-                ...dailyTasks.map(
-                  (task) => _buildTaskCard(context, ref, task, isDark, theme),
-                ),
-              ],
+              ),
 
-              if (scheduledTasks.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 6),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Scheduled Tasks',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildCountBadge(
-                        context,
-                        scheduledTasks.length,
-                        theme.colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                ),
-                ...scheduledTasks.map(
-                  (task) => _buildTaskCard(context, ref, task, isDark, theme),
-                ),
-              ],
-
-              if (dailyTasks.isEmpty && scheduledTasks.isEmpty) ...[
+              if (taskDays.isEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 28, 24, 12),
                   child: Text(
@@ -307,6 +247,71 @@ class TasksScreen extends ConsumerWidget {
           ),
         ),
       );
+
+  Widget _buildTaskDayRow(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime day,
+    List<Task> tasks,
+    tz.TZDateTime today,
+    bool isDark,
+    ThemeData theme,
+  ) {
+    final difference = DateTime(
+      day.year,
+      day.month,
+      day.day,
+    ).difference(DateTime(today.year, today.month, today.day)).inDays;
+    final label = difference == 0
+        ? 'Today'
+        : difference == 1
+        ? 'Tomorrow'
+        : '${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day.weekday - 1]}, ${day.day}/${day.month}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+          child: Row(
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildCountBadge(
+                context,
+                tasks.length,
+                theme.colorScheme.primary,
+              ),
+              const Spacer(),
+              Icon(
+                Icons.swipe_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 118,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            scrollDirection: Axis.horizontal,
+            itemCount: tasks.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) => SizedBox(
+              width: 290,
+              child: _buildTaskCard(context, ref, tasks[index], isDark, theme),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildWeeklyCompletionCard(BuildContext context, List<Task> tasks) {
     final theme = Theme.of(context);
     final now = AppTimezone.businessDate();

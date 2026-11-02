@@ -27,3 +27,7 @@ build/
 
 # Local Android build toolchain (not versioned)
 **/.toolchain/
+
+# JVM crash artifacts can contain process memory and local secrets
+**/hs_err_pid*.log
+**/java_pid*.hprof

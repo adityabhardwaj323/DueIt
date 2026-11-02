@@ -34,23 +34,22 @@ serve(async (req: Request) => {
     const now = new Date();
     const newReminders: any[] = [];
 
-    const { data: tasks, error: tasksError } = await supabase
-      .from('tasks')
-      .select('id, user_id, due_date')
-      .eq('is_completed', false)
-      .not('due_date', 'is', null)
-      .limit(1000);
-
-    if (tasksError) throw tasksError;
-
-    const { data: dues, error: duesError } = await supabase
-      .from('dues')
-      .select('id, user_id, due_date, status')
-      .neq('status', 'settled')
-      .not('due_date', 'is', null)
-      .limit(1000);
-
-    if (duesError) throw duesError;
+    const fetchAll = async (table: 'tasks' | 'dues', select: string, configure: (query: any) => any) => {
+      const rows: any[] = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await configure(supabase.from(table).select(select))
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
+    };
+    const tasks = await fetchAll('tasks', 'id, user_id, due_date', query =>
+      query.eq('is_completed', false).not('due_date', 'is', null));
+    const dues = await fetchAll('dues', 'id, user_id, due_date, status', query =>
+      query.neq('status', 'settled').not('due_date', 'is', null));
 
     const taskIds = tasks?.map(t => t.id) || [];
     const dueIds = dues?.map(d => d.id) || [];
@@ -61,21 +60,22 @@ serve(async (req: Request) => {
     const existingReminders: any[] = [];
     
     for (const chunked of chunk(taskIds, 200)) {
-       const { data, error } = await supabase.from('reminder_events').select('task_id, reminder_type').in('task_id', chunked);
+       const { data, error } = await supabase.from('reminder_events').select('task_id, reminder_type, scheduled_time, status').in('task_id', chunked).in('status', ['pending', 'processing', 'sent']);
        if (error) throw error;
        if (data) existingReminders.push(...data);
     }
     
     for (const chunked of chunk(dueIds, 200)) {
-       const { data, error } = await supabase.from('reminder_events').select('due_id, reminder_type').in('due_id', chunked);
+       const { data, error } = await supabase.from('reminder_events').select('due_id, reminder_type, scheduled_time, status').in('due_id', chunked).in('status', ['pending', 'processing', 'sent']);
        if (error) throw error;
        if (data) existingReminders.push(...data);
     }
 
-    const hasReminder = (entityId: string, isTask: boolean, type: string) => {
+    const hasReminder = (entityId: string, isTask: boolean, type: string, scheduledTime: Date) => {
       return existingReminders.some(r => 
         (isTask ? r.task_id === entityId : r.due_id === entityId) && 
-        r.reminder_type === type
+        r.reminder_type === type &&
+        new Date(r.scheduled_time).getTime() === scheduledTime.getTime()
       );
     };
 
@@ -87,7 +87,7 @@ serve(async (req: Request) => {
         const overdueDate = new Date(dueDate.getTime() + OVERDUE_DELAY_MS);
 
         // Rule 1: Upcoming - only before due date
-        if (now >= upcomingDate && now < dueDate && !hasReminder(task.id, true, 'upcoming')) {
+        if (now >= upcomingDate && now < dueDate && !hasReminder(task.id, true, 'upcoming', upcomingDate)) {
           newReminders.push({
             user_id: task.user_id,
             task_id: task.id,
@@ -97,11 +97,11 @@ serve(async (req: Request) => {
             scheduled_time: upcomingDate.toISOString(),
             status: 'pending'
           });
-          existingReminders.push({ task_id: task.id, reminder_type: 'upcoming' });
+          existingReminders.push({ task_id: task.id, reminder_type: 'upcoming', scheduled_time: upcomingDate.toISOString() });
         }
 
         // Rule 2: Deadline - only if within tolerance window
-        if (now >= dueDate && now <= deadlineExp && !hasReminder(task.id, true, 'deadline')) {
+        if (now >= dueDate && now <= deadlineExp && !hasReminder(task.id, true, 'deadline', dueDate)) {
           newReminders.push({
             user_id: task.user_id,
             task_id: task.id,
@@ -111,11 +111,11 @@ serve(async (req: Request) => {
             scheduled_time: dueDate.toISOString(),
             status: 'pending'
           });
-          existingReminders.push({ task_id: task.id, reminder_type: 'deadline' });
+          existingReminders.push({ task_id: task.id, reminder_type: 'deadline', scheduled_time: dueDate.toISOString() });
         }
 
         // Rule 3: Overdue - valid anytime after +1 hour
-        if (now >= overdueDate && !hasReminder(task.id, true, 'overdue')) {
+        if (now >= overdueDate && !hasReminder(task.id, true, 'overdue', overdueDate)) {
           newReminders.push({
             user_id: task.user_id,
             task_id: task.id,
@@ -125,7 +125,7 @@ serve(async (req: Request) => {
             scheduled_time: overdueDate.toISOString(),
             status: 'pending'
           });
-          existingReminders.push({ task_id: task.id, reminder_type: 'overdue' });
+          existingReminders.push({ task_id: task.id, reminder_type: 'overdue', scheduled_time: overdueDate.toISOString() });
         }
       }
     }
@@ -137,7 +137,7 @@ serve(async (req: Request) => {
         const deadlineExp = new Date(dueDate.getTime() + DEADLINE_TOLERANCE_MS);
         const overdueDate = new Date(dueDate.getTime() + OVERDUE_DELAY_MS);
 
-        if (now >= upcomingDate && now < dueDate && !hasReminder(due.id, false, 'upcoming')) {
+        if (now >= upcomingDate && now < dueDate && !hasReminder(due.id, false, 'upcoming', upcomingDate)) {
           newReminders.push({
             user_id: due.user_id,
             task_id: null,
@@ -147,10 +147,10 @@ serve(async (req: Request) => {
             scheduled_time: upcomingDate.toISOString(),
             status: 'pending'
           });
-          existingReminders.push({ due_id: due.id, reminder_type: 'upcoming' });
+          existingReminders.push({ due_id: due.id, reminder_type: 'upcoming', scheduled_time: upcomingDate.toISOString() });
         }
 
-        if (now >= dueDate && now <= deadlineExp && !hasReminder(due.id, false, 'deadline')) {
+        if (now >= dueDate && now <= deadlineExp && !hasReminder(due.id, false, 'deadline', dueDate)) {
           newReminders.push({
             user_id: due.user_id,
             task_id: null,
@@ -160,10 +160,10 @@ serve(async (req: Request) => {
             scheduled_time: dueDate.toISOString(),
             status: 'pending'
           });
-          existingReminders.push({ due_id: due.id, reminder_type: 'deadline' });
+          existingReminders.push({ due_id: due.id, reminder_type: 'deadline', scheduled_time: dueDate.toISOString() });
         }
 
-        if (now >= overdueDate && !hasReminder(due.id, false, 'overdue')) {
+        if (now >= overdueDate && !hasReminder(due.id, false, 'overdue', overdueDate)) {
           newReminders.push({
             user_id: due.user_id,
             task_id: null,
@@ -173,7 +173,7 @@ serve(async (req: Request) => {
             scheduled_time: overdueDate.toISOString(),
             status: 'pending'
           });
-          existingReminders.push({ due_id: due.id, reminder_type: 'overdue' });
+          existingReminders.push({ due_id: due.id, reminder_type: 'overdue', scheduled_time: overdueDate.toISOString() });
         }
       }
     }
@@ -202,8 +202,8 @@ serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       success: true,
-      evaluatedTasks: tasks?.length || 0,
-      evaluatedDues: dues?.length || 0,
+      evaluatedTasks: tasks.length,
+      evaluatedDues: dues.length,
       generatedReminders: newReminders.length,
       insertedReminders: insertedCount,
       duplicateReminders: duplicateCount,
