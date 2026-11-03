@@ -296,14 +296,14 @@ class TasksScreen extends ConsumerWidget {
           ),
         ),
         SizedBox(
-          height: 118,
+          height: 144,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             scrollDirection: Axis.horizontal,
             itemCount: tasks.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, index) => SizedBox(
-              width: 290,
+              width: 320,
               child: _buildTaskCard(context, ref, tasks[index], isDark, theme),
             ),
           ),
@@ -469,6 +469,8 @@ class TasksScreen extends ConsumerWidget {
                   children: [
                     Text(
                       task.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         decoration: task.isCompleted
@@ -507,16 +509,20 @@ class TasksScreen extends ConsumerWidget {
                                 : theme.colorScheme.primary,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            _formatTaskDate(task.dueDate!),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: isOverdue
-                                  ? Colors.redAccent
-                                  : (isDark
-                                        ? const Color(0xFF9CA3AF)
-                                        : const Color(0xFF6B7280)),
+                          Flexible(
+                            child: Text(
+                              _formatTaskDate(task.dueDate!),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: isOverdue
+                                    ? Colors.redAccent
+                                    : (isDark
+                                          ? const Color(0xFF9CA3AF)
+                                          : const Color(0xFF6B7280)),
+                              ),
                             ),
                           ),
                         ],

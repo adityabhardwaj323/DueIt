@@ -62,9 +62,12 @@ class NotesRepository {
   NotesRepository(this._client);
 
   Stream<List<Note>> watchNotes() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return const Stream.empty();
     return _client
         .from('notes')
         .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
         .order('updated_at', ascending: false)
         .map((data) => data.map((json) => Note.fromJson(json)).toList());
   }

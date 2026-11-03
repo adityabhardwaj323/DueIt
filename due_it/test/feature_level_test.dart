@@ -314,7 +314,7 @@ void main() {
       expect(find.text('Review project plan'), findsOneWidget);
       expect(find.text('Reply to the team'), findsOneWidget);
       expect(find.text('Completed'), findsOneWidget);
-      expect(find.text('Scheduled Tasks'), findsOneWidget);
+      expect(find.text('Tomorrow'), findsOneWidget);
       expect(find.text('This week'), findsOneWidget);
       expect(find.text('HIGH'), findsOneWidget);
     });
@@ -560,7 +560,7 @@ void main() {
         id: 'urgent-task',
         userId: 'user-1',
         title: 'Prepare presentation',
-        dueDate: now.add(const Duration(hours: 2)),
+        dueDate: AppTimezone.businessDate().add(const Duration(hours: 10)),
         createdAt: now,
         updatedAt: now,
       );
@@ -572,13 +572,19 @@ void main() {
               (ref) => Stream.value([urgentTask]),
             ),
             duesStreamProvider.overrideWith((ref) => Stream.value([due])),
+            streakTasksStreamProvider.overrideWith(
+              (ref) => Stream.value(<StreakTask>[]),
+            ),
+            personalExpensesStreamProvider.overrideWith(
+              (ref) => Stream.value(<PersonalExpense>[]),
+            ),
           ],
           child: const MaterialApp(home: SmartInboxScreen()),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Smart Inbox'), findsOneWidget);
+      expect(find.text('Overview'), findsOneWidget);
       expect(find.text('Prepare presentation'), findsOneWidget);
       expect(find.text('₹2500'), findsAtLeastNWidgets(1));
       expect(find.text('Weekend plans'), findsOneWidget);

@@ -20,6 +20,49 @@ class SmartInboxScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch every dashboard source in the same build. Nesting these watches
+    // inside each other's data callbacks serializes first-load subscriptions.
+    final notesAsync = ref.watch(notesStreamProvider);
+    final tasksAsync = ref.watch(tasksStreamProvider);
+    final duesAsync = ref.watch(duesStreamProvider);
+    final habitsAsync = ref.watch(streakTasksStreamProvider);
+    final expensesAsync = ref.watch(personalExpensesStreamProvider);
+
+    final hasAnyError = notesAsync.hasError &&
+        tasksAsync.hasError &&
+        duesAsync.hasError &&
+        habitsAsync.hasError &&
+        expensesAsync.hasError;
+
+    final Widget dashboardBody;
+    if (hasAnyError) {
+      dashboardBody = _ErrorState(
+        message: 'Could not connect to sync service.',
+        onRetry: () {
+          ref.invalidate(notesStreamProvider);
+          ref.invalidate(tasksStreamProvider);
+          ref.invalidate(duesStreamProvider);
+          ref.invalidate(streakTasksStreamProvider);
+          ref.invalidate(personalExpensesStreamProvider);
+        },
+      );
+    } else if (notesAsync.hasValue ||
+        tasksAsync.hasValue ||
+        duesAsync.hasValue ||
+        habitsAsync.hasValue ||
+        expensesAsync.hasValue) {
+      dashboardBody = _DashboardContent(
+        notes: notesAsync.value ?? const [],
+        tasks: tasksAsync.value ?? const [],
+        dues: duesAsync.value ?? const [],
+        habits: habitsAsync.value ?? const [],
+        expenses: expensesAsync.value ?? const [],
+        onQuickAdd: () => _showQuickAddSheet(context),
+      );
+    } else {
+      dashboardBody = const _LoadingState();
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -53,55 +96,7 @@ class SmartInboxScreen extends ConsumerWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: ref
-          .watch(notesStreamProvider)
-          .when(
-            loading: () => const _LoadingState(),
-            error: (error, stack) => _ErrorState(
-              message: 'Your notes could not be loaded.',
-              onRetry: () => ref.invalidate(notesStreamProvider),
-            ),
-            data: (notes) => ref
-                .watch(tasksStreamProvider)
-                .when(
-                  loading: () => const _LoadingState(),
-                  error: (error, stack) => _ErrorState(
-                    message: 'Your tasks could not be loaded.',
-                    onRetry: () => ref.invalidate(tasksStreamProvider),
-                  ),
-                  data: (tasks) => ref
-                      .watch(duesStreamProvider)
-                      .when(
-                        loading: () => const _LoadingState(),
-                        error: (error, stack) => _ErrorState(
-                          message: 'Your dues could not be loaded.',
-                          onRetry: () => ref.invalidate(duesStreamProvider),
-                        ),
-                        data: (dues) => ref.watch(streakTasksStreamProvider).when(
-                          loading: () => const _LoadingState(),
-                          error: (error, stack) => _ErrorState(
-                            message: 'Your habits could not be loaded.',
-                            onRetry: () => ref.invalidate(streakTasksStreamProvider),
-                          ),
-                          data: (habits) => ref.watch(personalExpensesStreamProvider).when(
-                            loading: () => const _LoadingState(),
-                            error: (error, stack) => _ErrorState(
-                              message: 'Your expenses could not be loaded.',
-                              onRetry: () => ref.invalidate(personalExpensesStreamProvider),
-                            ),
-                            data: (expenses) => _DashboardContent(
-                              notes: notes,
-                              tasks: tasks,
-                              dues: dues,
-                              habits: habits,
-                              expenses: expenses,
-                              onQuickAdd: () => _showQuickAddSheet(context),
-                            ),
-                          ),
-                        ),
-                      ),
-                ),
-          ),
+      body: dashboardBody,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showQuickAddSheet(context),
         icon: const Icon(Icons.add_rounded),

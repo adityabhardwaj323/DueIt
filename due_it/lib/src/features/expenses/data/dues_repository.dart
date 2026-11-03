@@ -62,9 +62,12 @@ class DuesRepository {
   DuesRepository(this._client);
 
   Stream<List<Due>> watchDues() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return const Stream.empty();
     return _client
         .from('dues')
         .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
         .order('due_date', ascending: true)
         .map((data) => data.map((json) => Due.fromJson(json)).toList());
   }

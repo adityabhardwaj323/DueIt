@@ -33,9 +33,11 @@ class StreakTask {
       currentStreak: json['current_streak'] ?? 0,
       bestStreak: json['best_streak'] ?? 0,
       // This column is a PostgreSQL DATE in the habit's business timezone.
-      lastCompletedDate: json['last_completed_date'] != null
-          ? DateTime.parse('${json['last_completed_date']}T00:00:00')
-          : null,
+      lastCompletedDate: json['last_completed_date'] == null
+          ? null
+          : DateTime.parse(
+              '${(json['last_completed_date'] as String).split('T').first}T00:00:00',
+            ),
       createdAt: DateTime.parse(json['created_at']).toLocal(),
       updatedAt: DateTime.parse(json['updated_at']).toLocal(),
     );
@@ -81,9 +83,12 @@ class StreakTasksRepository {
   StreakTasksRepository(this._client);
 
   Stream<List<StreakTask>> watchStreakTasks() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return const Stream.empty();
     return _client
         .from('streak_tasks')
         .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
         .order('created_at', ascending: false)
         .map((data) => data.map((json) => StreakTask.fromJson(json)).toList());
   }

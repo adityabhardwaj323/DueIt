@@ -42,9 +42,12 @@ class PersonalExpensesRepository {
   PersonalExpensesRepository(this._client);
 
   Stream<List<PersonalExpense>> watchPersonalExpenses() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return const Stream.empty();
     return _client
         .from('personal_expenses')
         .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
         .order('expense_date', ascending: false)
         .map(
           (data) => data.map((json) => PersonalExpense.fromJson(json)).toList(),

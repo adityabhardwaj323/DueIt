@@ -1,12 +1,14 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../firebase_options.dart';
 
 class FCMService {
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // VAPID key is securely provided via Dart environment variables during build.
@@ -36,6 +38,11 @@ class FCMService {
     if (user == null) return; // Only sync for authenticated users
 
     try {
+      await _initializeFirebaseApp();
+      FirebaseMessaging.onBackgroundMessage(
+        firebaseMessagingBackgroundHandler,
+      );
+
       // 1. Request Permission
       NotificationSettings settings = await _messaging.requestPermission(
         alert: true,
@@ -114,6 +121,20 @@ class FCMService {
       debugPrint('Error removing FCM token on logout: $e');
     }
   }
+}
+
+Future<void> _initializeFirebaseApp() async {
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+}
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await _initializeFirebaseApp();
+  debugPrint('Handling a background message: ${message.messageId}');
 }
 
 final fcmService = FCMService();

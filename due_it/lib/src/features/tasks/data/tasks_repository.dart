@@ -48,21 +48,28 @@ class TasksRepository {
   TasksRepository(this._client);
 
   Stream<List<Task>> watchTasks() {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return const Stream.empty();
     return _client
         .from('tasks')
         .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
         .order('due_date', ascending: true)
         .map((data) {
           final tasksList = data.map((json) => Task.fromJson(json)).toList();
 
-          // Update Home Widget
+          // Update Home Widget asynchronously to avoid blocking the stream pipeline
           final pendingCount = tasksList.where((t) => !t.isCompleted).length;
-          HomeWidget.saveWidgetData<String>('widget_title', 'DueIt Status');
-          HomeWidget.saveWidgetData<String>(
-            'widget_subtitle',
-            'You have $pendingCount pending tasks.',
-          );
-          HomeWidget.updateWidget(androidName: 'DueItWidgetProvider');
+          Future.microtask(() async {
+            try {
+              await HomeWidget.saveWidgetData<String>('widget_title', 'DueIt Status');
+              await HomeWidget.saveWidgetData<String>(
+                'widget_subtitle',
+                'You have $pendingCount pending tasks.',
+              );
+              await HomeWidget.updateWidget(androidName: 'DueItWidgetProvider');
+            } catch (_) {}
+          });
 
           return tasksList;
         });
