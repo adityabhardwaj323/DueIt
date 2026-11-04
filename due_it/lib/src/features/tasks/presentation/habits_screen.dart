@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -181,6 +182,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
                               child: Checkbox(
                                 value: doneToday,
                                 onChanged: (checked) async {
+                                  HapticFeedback.mediumImpact();
                                   try {
                                     final repository = ref.read(
                                       streakTasksRepositoryProvider,

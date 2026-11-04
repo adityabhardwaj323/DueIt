@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'smart_inbox_screen.dart';
 import '../../notes/presentation/notes_screen.dart';
@@ -50,8 +51,10 @@ class _MainLayoutState extends State<MainLayout> {
         ),
         child: NavigationBar(
           selectedIndex: _currentIndex,
-          onDestinationSelected: (index) =>
-              setState(() => _currentIndex = index),
+          onDestinationSelected: (index) {
+            HapticFeedback.selectionClick();
+            setState(() => _currentIndex = index);
+          },
           elevation: 0,
           backgroundColor: theme.cardColor,
           indicatorColor: theme.colorScheme.primary.withOpacity(0.16),

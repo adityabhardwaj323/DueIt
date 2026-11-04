@@ -14,7 +14,11 @@ create table public.tasks (
     updated_at timestamp with time zone default now()
 );
 alter table public.tasks enable row level security;
-create policy "Users can manage their own tasks" on public.tasks for all using (auth.uid() = user_id);
+drop policy if exists "Users can manage their own tasks" on public.tasks;
+create policy "Users can manage their own tasks" on public.tasks
+    for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
 
 -- 2. Notes Table
 create table public.notes (
@@ -28,7 +32,11 @@ create table public.notes (
     updated_at timestamp with time zone default now()
 );
 alter table public.notes enable row level security;
-create policy "Users can manage their own notes" on public.notes for all using (auth.uid() = user_id);
+drop policy if exists "Users can manage their own notes" on public.notes;
+create policy "Users can manage their own notes" on public.notes
+    for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
 
 -- 3. Streak Tasks Table
 create table public.streak_tasks (
@@ -46,7 +54,11 @@ create table public.streak_tasks (
     updated_at timestamp with time zone default now()
 );
 alter table public.streak_tasks enable row level security;
-create policy "Users can manage their own streak tasks" on public.streak_tasks for all using (auth.uid() = user_id);
+drop policy if exists "Users can manage their own streak tasks" on public.streak_tasks;
+create policy "Users can manage their own streak tasks" on public.streak_tasks
+    for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
 
 -- Habit completion history, one row per habit per day.
 create table public.habit_completions (
@@ -80,7 +92,11 @@ create table public.dues (
     updated_at timestamp with time zone default now()
 );
 alter table public.dues enable row level security;
-create policy "Users can manage their own dues" on public.dues for all using (auth.uid() = user_id);
+drop policy if exists "Users can manage their own dues" on public.dues;
+create policy "Users can manage their own dues" on public.dues
+    for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
 
 -- 5. Personal Expenses Table
 create table public.personal_expenses (
@@ -94,4 +110,8 @@ create table public.personal_expenses (
     updated_at timestamp with time zone default now()
 );
 alter table public.personal_expenses enable row level security;
-create policy "Users can manage their own personal expenses" on public.personal_expenses for all using (auth.uid() = user_id);
+drop policy if exists "Users can manage their own personal expenses" on public.personal_expenses;
+create policy "Users can manage their own personal expenses" on public.personal_expenses
+    for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);

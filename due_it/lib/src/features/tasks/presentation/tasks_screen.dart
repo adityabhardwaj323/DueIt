@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -456,6 +457,7 @@ class TasksScreen extends ConsumerWidget {
                 activeColor: theme.colorScheme.primary,
                 onChanged: (val) {
                   if (val != null) {
+                    HapticFeedback.mediumImpact();
                     ref
                         .read(tasksRepositoryProvider)
                         .updateTaskStatus(task.id, val);
