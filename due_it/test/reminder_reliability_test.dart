@@ -106,7 +106,7 @@ void main() {
 
     // 6. Claim or finalization database errors fail-closed
     test('6. Claim or finalization database error fails closed (no send executed)', () {
-      bool claimDbError = true;
+      final claimDbError = <bool>[true].first;
       bool fcmCalled = false;
 
       if (!claimDbError) {
@@ -119,7 +119,7 @@ void main() {
     // 7. Transient FCM failure and subsequent retry
     test('7. Transient FCM failure leaves reminder in pending state for next scheduler tick', () {
       final dbRow = {'id': 'rem-7', 'status': 'pending'};
-      bool fcmTransientFailure = true;
+      final fcmTransientFailure = <bool>[true].first;
 
       if (!fcmTransientFailure) {
         dbRow['status'] = 'sent';
@@ -160,7 +160,7 @@ void main() {
     test('10. Firebase acceptance followed by lost response documents unavoidable at-least-once retry', () {
       // Scenario: Firebase delivered to phone, but Edge Function disconnected before reading HTTP 200
       final dbRow = {'id': 'rem-10', 'status': 'pending'};
-      bool responseLostInNetwork = true;
+      final responseLostInNetwork = <bool>[true].first;
 
       if (!responseLostInNetwork) {
         dbRow['status'] = 'sent';

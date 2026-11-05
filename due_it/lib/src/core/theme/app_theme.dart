@@ -185,15 +185,15 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: cardColor,
-        elevation: isDark ? 0 : 0.8,
+        elevation: isDark ? 0.5 : 1.2,
         shadowColor: isDark
-            ? Colors.transparent
-            : Colors.black.withOpacity(0.06),
+            ? Colors.black.withOpacity(0.4)
+            : primary.withOpacity(0.08),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(cardRadius),
+          borderRadius: BorderRadius.circular(18),
           side: BorderSide(
-            color: isDark ? const Color(0xFF2D2D35) : const Color(0xFFE9E8EE),
+            color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE8E8EE),
             width: 1,
           ),
         ),
@@ -239,6 +239,31 @@ class AppTheme {
         elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: cardColor,
+        elevation: 0,
+        indicatorColor: primary.withOpacity(isDark ? 0.22 : 0.14),
+        labelTextStyle: MaterialStateProperty.resolveWith((states) {
+          final isSelected = states.contains(MaterialState.selected);
+          return TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected
+                ? primary
+                : (isDark ? const Color(0xFF9494A0) : const Color(0xFF6B6E7B)),
+            letterSpacing: 0.1,
+          );
+        }),
+        iconTheme: MaterialStateProperty.resolveWith((states) {
+          final isSelected = states.contains(MaterialState.selected);
+          return IconThemeData(
+            size: 22,
+            color: isSelected
+                ? primary
+                : (isDark ? const Color(0xFF9494A0) : const Color(0xFF6B6E7B)),
+          );
+        }),
+      ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: cardColor,
         selectedItemColor: primary,
@@ -246,19 +271,19 @@ class AppTheme {
             ? const Color(0xFF888894)
             : const Color(0xFF6B6E7B),
         selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
         unselectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w500,
           fontSize: 12,
         ),
-        elevation: 8,
+        elevation: 6,
         type: BottomNavigationBarType.fixed,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF3F2F8),
+        fillColor: isDark ? const Color(0xFF1E1E26) : const Color(0xFFF6F6FB),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(inputRadius),
           borderSide: BorderSide(
@@ -268,16 +293,16 @@ class AppTheme {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(inputRadius),
           borderSide: BorderSide(
-            color: isDark ? const Color(0xFF2C2C38) : const Color(0xFFE2E1EA),
+            color: isDark ? const Color(0xFF2E2E3A) : const Color(0xFFE5E5ED),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(inputRadius),
-          borderSide: BorderSide(color: primary, width: 1.8),
+          borderSide: BorderSide(color: primary, width: 2.0),
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+          horizontal: 18,
+          vertical: 15,
         ),
       ),
       dialogTheme: DialogThemeData(

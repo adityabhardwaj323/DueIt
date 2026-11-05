@@ -329,12 +329,39 @@ class _WelcomeHeader extends StatelessWidget {
     final date = AppTimezone.businessNow();
     final dateLabel =
         '${_weekday(date.weekday).toUpperCase()}  ·  ${_month(date.month).toUpperCase()} ${date.day}';
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: EdgeInsets.all(width < 600 ? 20 : 26),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: .8)),
+        border: Border.all(
+          color: isDark
+              ? theme.colorScheme.primary.withOpacity(0.2)
+              : theme.colorScheme.primary.withOpacity(0.12),
+        ),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  theme.cardColor,
+                  theme.colorScheme.primary.withOpacity(0.08),
+                ]
+              : [
+                  theme.cardColor,
+                  theme.colorScheme.primary.withOpacity(0.04),
+                ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : theme.colorScheme.primary.withOpacity(0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -342,21 +369,28 @@ class _WelcomeHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  dateLabel,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    dateLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(
                   _greeting(date.hour),
                   style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -.9,
-                    height: 1.12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
+                    height: 1.15,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -549,16 +583,28 @@ class _MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       constraints: const BoxConstraints(minHeight: 82),
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 11 : 16,
-        vertical: 13,
+        horizontal: compact ? 12 : 16,
+        vertical: 14,
       ),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: .8)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE8E8EE),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : tint.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -1066,13 +1112,25 @@ class _Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 17, 18, 8),
+      padding: const EdgeInsets.fromLTRB(18, 17, 18, 10),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: .85)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE8E8EE),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.25)
+                : theme.colorScheme.primary.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: child,
     );
