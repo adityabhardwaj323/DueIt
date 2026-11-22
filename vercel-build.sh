@@ -20,6 +20,7 @@ else
     fi
   fi
   flutter_bin="$sdk_root/bin/flutter"
+  git config --global --add safe.directory "$sdk_root"
 fi
 
 cd "$repo_root/due_it"
