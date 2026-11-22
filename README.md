@@ -121,6 +121,12 @@ The system is deployed in distinct layers:
 
 *Note: Reminder scheduler configuration is provided through Supabase pg_cron/pg_net infrastructure. Live scheduler verification should be performed in the deployed Supabase environment.*
 
+### Vercel Web Preview and Deployment
+
+The repository includes a Vercel configuration for the Flutter web client. Import the repository into Vercel and leave the project root set to the repository root. Vercel runs `vercel-build.sh`, builds `due_it/` for web, and serves the output from `due_it/build/web`. The build script uses Flutter from `PATH` or `FLUTTER_ROOT`; if unavailable, it downloads the current stable Linux Flutter SDK.
+
+Vercel's Git integration creates a preview deployment for each pull request and branch deployment URLs for commits. The rewrite configuration also sends deep links to Flutter's `index.html` entry point. To enable web push, set `FIREBASE_VAPID_KEY` in Vercel's Environment Variables for the relevant environments. Firebase's web client configuration in `web/firebase-messaging-sw.js` must also be filled in with the public Firebase project values; keep service-account credentials and Supabase service-role keys out of Vercel client environment variables.
+
 ## Security
 
 DueIt employs a strict separation of concerns regarding credentials:
