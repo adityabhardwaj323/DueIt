@@ -11,7 +11,9 @@ else
     release_json="$(curl --fail --silent --show-error https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)"
     archive="$(python3 -c 'import json,sys; data=json.load(sys.stdin); stable=data["current_release"]["stable"]; print(next(r["archive"] for r in data["releases"] if r["hash"] == stable and r["channel"] == "stable"))' <<< "$release_json")"
     mkdir -p "$(dirname "$sdk_root")"
-    curl --fail --location --silent --show-error "https://storage.googleapis.com/flutter_infra_release/releases/$archive" | tar -xz -C "$(dirname "$sdk_root")"
+    archive_file="${TMPDIR:-/tmp}/flutter-sdk-release.tar"
+    curl --fail --location --silent --show-error --output "$archive_file" "https://storage.googleapis.com/flutter_infra_release/releases/$archive"
+    tar -xf "$archive_file" -C "$(dirname "$sdk_root")"
     # Flutter archives extract to a directory named `flutter`.
     if [[ "$sdk_root" != "$(dirname "$sdk_root")/flutter" ]]; then
       mv "$(dirname "$sdk_root")/flutter" "$sdk_root"
