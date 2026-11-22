@@ -120,7 +120,10 @@ class _AuthScreenState extends State<AuthScreen> {
       final launched = await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: kIsWeb ? null : 'com.dueit.due_it://auth-callback',
-        scopes: 'openid email profile',
+        // Some Google Workspace accounts require the full userinfo email
+        // scope to return the account email during Supabase's callback.
+        scopes:
+            'openid email profile https://www.googleapis.com/auth/userinfo.email',
       );
       if (!launched && mounted) {
         _showMessage(
